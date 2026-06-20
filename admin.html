@@ -325,7 +325,7 @@ function personalityForge() {
 
         async loadSession() {
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/session`);
+                const resp = await fetch(`/api/personality_forge/${this.slug}/session`);
                 if (resp.ok) {
                     const data = await resp.json();
                     this.session = data;
@@ -339,7 +339,7 @@ function personalityForge() {
 
         async loadTraits() {
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/traits`);
+                const resp = await fetch(`/api/personality_forge/${this.slug}/traits`);
                 if (resp.ok) {
                     const data = await resp.json();
                     this.traits = data.traits || [];
@@ -417,7 +417,7 @@ function personalityForge() {
         async resetSession() {
             if (!confirm('Reset the interview session? Chat history will be archived but traits are kept.')) return;
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/session/reset`, { method: 'POST' });
+                const resp = await fetch(`/api/personality_forge/${this.slug}/session/reset`, { method: 'POST' });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 this.messages = [];
                 this.session = null;
@@ -430,7 +430,7 @@ function personalityForge() {
         async addTrait() {
             if (!this.newTrait.content.trim()) return;
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/traits`, {
+                const resp = await fetch(`/api/personality_forge/${this.slug}/traits`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.newTrait),
@@ -448,7 +448,7 @@ function personalityForge() {
         async deleteTrait(traitId) {
             if (!confirm('Delete this trait?')) return;
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/traits/${traitId}`, { method: 'DELETE' });
+                const resp = await fetch(`/api/personality_forge/${this.slug}/traits/${traitId}`, { method: 'DELETE' });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 await this.loadTraits();
             } catch (e) {
@@ -460,7 +460,7 @@ function personalityForge() {
             const yaml = this.$refs.importYaml?.value;
             if (!yaml?.trim()) return;
             try {
-                const resp = await fetch(`/api/personality-forge/${this.slug}/import`, {
+                const resp = await fetch(`/api/personality_forge/${this.slug}/import`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ yaml }),
