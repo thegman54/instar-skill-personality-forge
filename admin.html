@@ -29,6 +29,7 @@
                 class="px-3 py-1.5 text-xs rounded transition-colors">
                 <span x-text="showTraits ? 'Hide Traits' : 'Show Traits'"></span>
             </button>
+            <!-- VOICE_BUTTON -->
             <button x-show="session && messages.length > 0" @click="resetSession()"
                 class="px-3 py-1.5 text-xs text-gray-400 hover:text-red-400 border border-gray-600 rounded transition-colors">
                 Reset Session
@@ -36,8 +37,23 @@
         </div>
     </div>
 
+    <!-- VOICE_PANEL -->
+
+    <!-- No Profile Message -->
+    <div x-show="noProfile" class="flex-1 flex flex-col items-center justify-center text-gray-500 py-12">
+        <svg class="h-16 w-16 mb-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 6.75 6.75 0 0015.362 5.214z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+        </svg>
+        <p class="text-lg font-medium text-gray-400">Interview-Driven Personality Builder</p>
+        <p class="text-sm mt-2 text-center max-w-md">
+            The forge builds personality traits through a guided interview with your bot.
+            Open this from a <span class="text-orange-400">profile's personality slot</span> on the Profiles page to begin.
+        </p>
+    </div>
+
     <!-- Main Content -->
-    <div class="flex-1 flex gap-3 min-h-0">
+    <div x-show="!noProfile" class="flex-1 flex gap-3 min-h-0">
 
         <!-- Chat Panel -->
         <div class="flex-1 flex flex-col min-w-0" :class="showTraits ? '' : 'max-w-full'">
@@ -255,6 +271,8 @@
 function personalityForge() {
     return {
         slug: '',
+        noProfile: false,
+        // VOICE_JS_PROPERTIES
         messages: [],
         traits: [],
         session: null,
@@ -271,11 +289,14 @@ function personalityForge() {
 
         init() {
             this.slug = this.$el.closest('[data-admin-slug]')?.dataset.adminSlug || '';
+            // VOICE_INIT
             if (this.slug) {
                 this.loadSession();
                 this.loadTraits();
                 this.checkBotStatus();
                 this._statusInterval = setInterval(() => this.checkBotStatus(), 15000);
+            } else {
+                this.noProfile = true;
             }
         },
 
