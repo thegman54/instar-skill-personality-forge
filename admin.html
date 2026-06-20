@@ -1,0 +1,486 @@
+<!--
+  Personality Forge — Interview Builder
+  Self-contained Alpine.js component. Loaded into a modal by the profiles page.
+  Expects: container div has data-slug attribute set to the profile slug.
+
+  Two panels:
+    Left:  Chat window — interview conversation with the bot
+    Right: Discovered traits, accumulating in real-time
+-->
+<div x-data="personalityForge()" x-init="init()" class="flex flex-col h-full">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3">
+        <div>
+            <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                <svg class="h-5 w-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 6.75 6.75 0 0015.362 5.214z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+                </svg>
+                Personality Forge
+            </h3>
+            <span class="text-xs font-mono text-gray-400" x-text="slug"></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span x-show="traits.length > 0" class="text-xs text-orange-400 font-mono"
+                x-text="traits.length + ' trait' + (traits.length !== 1 ? 's' : '')"></span>
+            <button @click="showTraits = !showTraits"
+                :class="showTraits ? 'bg-orange-700 text-white' : 'text-gray-400 hover:text-white border border-gray-600'"
+                class="px-3 py-1.5 text-xs rounded transition-colors">
+                <span x-text="showTraits ? 'Hide Traits' : 'Show Traits'"></span>
+            </button>
+            <button x-show="session && messages.length > 0" @click="resetSession()"
+                class="px-3 py-1.5 text-xs text-gray-400 hover:text-red-400 border border-gray-600 rounded transition-colors">
+                Reset Session
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex gap-3 min-h-0">
+
+        <!-- Chat Panel -->
+        <div class="flex-1 flex flex-col min-w-0" :class="showTraits ? '' : 'max-w-full'">
+
+            <!-- Status Bar -->
+            <div class="flex items-center gap-2 mb-2 px-2">
+                <div class="flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full" :class="botConnected ? 'bg-green-400' : 'bg-red-400'"></span>
+                    <span class="text-xs text-gray-400" x-text="botConnected ? 'Bot connected' : 'Bot offline'"></span>
+                </div>
+                <template x-if="session">
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                        <span>&middot;</span>
+                        <span x-text="(session.categories_covered || []).length + '/9 categories'"></span>
+                        <span>&middot;</span>
+                        <span x-text="session.trait_count + ' extracted'"></span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Chat Messages -->
+            <div x-ref="chatScroll" class="flex-1 overflow-y-auto bg-gray-950 border border-gray-700 rounded-lg p-3 space-y-3 font-mono text-sm scroll-smooth"
+                 style="min-height: 300px;">
+
+                <!-- Empty State -->
+                <div x-show="messages.length === 0 && !loading" class="flex flex-col items-center justify-center h-full text-gray-500">
+                    <svg class="h-12 w-12 mb-3 text-gray-700" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+                    </svg>
+                    <p class="text-sm">Start the interview</p>
+                    <p class="text-xs mt-1 text-gray-600">The bot will guide you through building a personality profile.</p>
+                </div>
+
+                <!-- Messages -->
+                <template x-for="(msg, i) in messages" :key="i">
+                    <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                        <div :class="msg.role === 'user'
+                            ? 'bg-orange-900/30 border border-orange-800/40 text-orange-100 ml-12'
+                            : 'bg-gray-800/60 border border-gray-700/50 text-gray-200 mr-12'"
+                            class="rounded-lg px-3 py-2 max-w-[85%]">
+                            <div class="text-[10px] uppercase tracking-wide mb-1"
+                                :class="msg.role === 'user' ? 'text-orange-500' : 'text-gray-500'"
+                                x-text="msg.role === 'user' ? 'You' : 'Forge'"></div>
+                            <div class="whitespace-pre-wrap text-xs leading-relaxed" x-text="msg.content"></div>
+                            <!-- Trait badges if any were extracted from this message -->
+                            <template x-if="msg.traits_extracted && msg.traits_extracted > 0">
+                                <div class="mt-2 pt-1 border-t border-gray-700/50">
+                                    <span class="text-[10px] text-orange-400">
+                                        <span x-text="msg.traits_extracted"></span> trait<span x-show="msg.traits_extracted > 1">s</span> extracted
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Typing Indicator -->
+                <div x-show="sending" x-cloak class="flex justify-start">
+                    <div class="bg-gray-800/60 border border-gray-700/50 rounded-lg px-4 py-3">
+                        <div class="flex gap-1">
+                            <span class="h-2 w-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+                            <span class="h-2 w-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+                            <span class="h-2 w-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="mt-2 flex gap-2">
+                <div class="flex-1 relative">
+                    <textarea x-ref="chatInput" x-model="inputMessage"
+                        @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+                        :disabled="sending || !botConnected"
+                        placeholder="Describe your bot's personality..."
+                        rows="2"
+                        class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm font-mono resize-none focus:border-orange-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
+                    <span class="absolute bottom-1.5 right-2 text-[10px] text-gray-600">Shift+Enter for newline</span>
+                </div>
+                <button @click="sendMessage()" :disabled="sending || !inputMessage.trim() || !botConnected"
+                    class="px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors self-end">
+                    <span x-show="!sending">Send</span>
+                    <span x-show="sending" class="flex items-center gap-1">
+                        <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+
+            <!-- Quick Actions (first message helpers) -->
+            <div x-show="messages.length === 0 && !sending && botConnected" class="mt-2 flex flex-wrap gap-1.5">
+                <button @click="inputMessage = 'Let\'s start building a personality profile.'; sendMessage()"
+                    class="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 transition-colors">
+                    Start fresh interview
+                </button>
+                <button @click="inputMessage = 'I already have an idea for the personality. Let me describe it.'; sendMessage()"
+                    class="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 transition-colors">
+                    I have an idea already
+                </button>
+                <button @click="inputMessage = 'I want a professional, friendly customer service personality.'; sendMessage()"
+                    class="px-2.5 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 transition-colors">
+                    Customer service style
+                </button>
+            </div>
+
+            <!-- Error Display -->
+            <div x-show="error" class="mt-2 px-3 py-2 bg-red-900/30 border border-red-800/50 rounded text-xs text-red-300" x-text="error"></div>
+        </div>
+
+        <!-- Traits Panel (right side) -->
+        <div x-show="showTraits" x-cloak class="w-80 flex-shrink-0 flex flex-col min-h-0">
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-semibold text-gray-300">Discovered Traits</h4>
+                <div class="flex gap-1">
+                    <button x-show="traits.length > 0" @click="showImport = false; showManualAdd = !showManualAdd"
+                        class="px-2 py-1 text-[10px] text-gray-400 hover:text-white border border-gray-700 rounded transition-colors">+ Add</button>
+                    <button x-show="traits.length > 0" @click="showManualAdd = false; showImport = !showImport"
+                        class="px-2 py-1 text-[10px] text-gray-400 hover:text-white border border-gray-700 rounded transition-colors">Import</button>
+                </div>
+            </div>
+
+            <!-- Manual Add Form (inline) -->
+            <div x-show="showManualAdd" x-cloak class="mb-2 bg-gray-900 border border-gray-600 rounded p-2">
+                <select x-model="newTrait.category" class="w-full mb-1 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-[11px] focus:border-orange-500 focus:outline-none">
+                    <template x-for="cat in allCategories" :key="cat">
+                        <option :value="cat" x-text="cat"></option>
+                    </template>
+                </select>
+                <textarea x-model="newTrait.content" rows="2" placeholder="Trait content..."
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-[11px] focus:border-orange-500 focus:outline-none resize-none"></textarea>
+                <div class="flex items-center justify-between mt-1">
+                    <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer">
+                        <input type="checkbox" x-model="newTrait.stable" class="rounded bg-gray-700 border-gray-600 text-orange-500 h-3 w-3">
+                        Stable
+                    </label>
+                    <div class="flex gap-1">
+                        <button @click="showManualAdd = false" class="px-2 py-0.5 text-[10px] text-gray-400 hover:text-white">Cancel</button>
+                        <button @click="addTrait()" class="px-2 py-0.5 text-[10px] bg-orange-700 hover:bg-orange-600 text-white rounded">Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Panel (inline) -->
+            <div x-show="showImport" x-cloak class="mb-2 bg-gray-900 border border-gray-600 rounded p-2">
+                <textarea x-ref="importYaml" rows="4" placeholder="Paste traits YAML..."
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-[11px] font-mono focus:border-orange-500 focus:outline-none resize-y"></textarea>
+                <div class="flex justify-end gap-1 mt-1">
+                    <button @click="showImport = false" class="px-2 py-0.5 text-[10px] text-gray-400 hover:text-white">Cancel</button>
+                    <button @click="importTraits()" class="px-2 py-0.5 text-[10px] bg-orange-700 hover:bg-orange-600 text-white rounded">Import</button>
+                </div>
+            </div>
+
+            <!-- Traits List -->
+            <div class="flex-1 overflow-y-auto space-y-1">
+                <template x-for="(catTraits, cat) in groupedTraits" :key="cat">
+                    <div>
+                        <div class="flex items-center gap-1.5 mt-2 first:mt-0 mb-1">
+                            <span class="text-[10px] font-bold uppercase tracking-wider"
+                                :class="categoryColor(cat)" x-text="cat"></span>
+                            <span class="text-[10px] text-gray-600" x-text="catTraits.length"></span>
+                        </div>
+                        <template x-for="trait in catTraits" :key="trait.id">
+                            <div class="group flex items-start gap-1.5 bg-gray-900/40 rounded px-2 py-1.5">
+                                <span class="flex-shrink-0 mt-1 h-1.5 w-1.5 rounded-full"
+                                    :class="trait.stable ? 'bg-orange-400' : 'bg-gray-600'"></span>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-[11px] text-gray-300 leading-snug" x-text="trait.content"></p>
+                                    <div x-show="trait.tags && trait.tags.length" class="flex flex-wrap gap-1 mt-0.5">
+                                        <template x-for="tag in trait.tags" :key="tag">
+                                            <span class="text-[9px] px-1 bg-gray-800 text-gray-500 rounded" x-text="tag"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <button @click="deleteTrait(trait.id)"
+                                    class="flex-shrink-0 text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <div x-show="traits.length === 0" class="text-center py-6 text-gray-600">
+                    <p class="text-xs">No traits yet</p>
+                    <p class="text-[10px] mt-1">Start the interview to discover traits.</p>
+                </div>
+            </div>
+
+            <!-- Category Progress -->
+            <div x-show="traits.length > 0" class="mt-2 pt-2 border-t border-gray-800">
+                <div class="grid grid-cols-3 gap-1">
+                    <template x-for="cat in allCategories" :key="cat">
+                        <div class="text-center px-1 py-0.5 rounded text-[9px]"
+                            :class="coveredCategories.has(cat) ? 'bg-orange-900/30 text-orange-400' : 'bg-gray-900/50 text-gray-600'"
+                            x-text="cat"></div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function personalityForge() {
+    return {
+        slug: '',
+        messages: [],
+        traits: [],
+        session: null,
+        inputMessage: '',
+        sending: false,
+        loading: false,
+        error: '',
+        botConnected: false,
+        showTraits: true,
+        showManualAdd: false,
+        showImport: false,
+        newTrait: { category: 'tone', content: '', stable: false },
+        allCategories: ['identity', 'tone', 'stance', 'boundary', 'phrase', 'situational', 'lexicon', 'rhetoric', 'worldview'],
+
+        init() {
+            this.slug = this.$el.closest('[data-admin-slug]')?.dataset.adminSlug || '';
+            if (this.slug) {
+                this.loadSession();
+                this.loadTraits();
+                this.checkBotStatus();
+                this._statusInterval = setInterval(() => this.checkBotStatus(), 15000);
+            }
+        },
+
+        destroy() {
+            if (this._statusInterval) clearInterval(this._statusInterval);
+        },
+
+        get groupedTraits() {
+            const groups = {};
+            const order = this.allCategories;
+            for (const t of this.traits) {
+                if (!groups[t.category]) groups[t.category] = [];
+                groups[t.category].push(t);
+            }
+            const sorted = {};
+            for (const cat of order) {
+                if (groups[cat]) sorted[cat] = groups[cat];
+            }
+            for (const [cat, traits] of Object.entries(groups)) {
+                if (!sorted[cat]) sorted[cat] = traits;
+            }
+            return sorted;
+        },
+
+        get coveredCategories() {
+            return new Set(this.traits.map(t => t.category));
+        },
+
+        categoryColor(cat) {
+            const colors = {
+                identity: 'text-blue-400',
+                tone: 'text-orange-400',
+                stance: 'text-green-400',
+                boundary: 'text-red-400',
+                phrase: 'text-purple-400',
+                situational: 'text-yellow-400',
+                lexicon: 'text-cyan-400',
+                rhetoric: 'text-pink-400',
+                worldview: 'text-emerald-400',
+            };
+            return colors[cat] || 'text-gray-400';
+        },
+
+        async checkBotStatus() {
+            try {
+                const resp = await fetch(`/api/profiles/${this.slug}/status`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.botConnected = data.runner_connected || false;
+                }
+            } catch (e) {
+                this.botConnected = false;
+            }
+        },
+
+        async loadSession() {
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/session`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.session = data;
+                    this.messages = data.messages || [];
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            } catch (e) {
+                console.error('Failed to load session:', e);
+            }
+        },
+
+        async loadTraits() {
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/traits`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.traits = data.traits || [];
+                }
+            } catch (e) {
+                console.error('Failed to load traits:', e);
+            }
+        },
+
+        async sendMessage() {
+            const text = this.inputMessage.trim();
+            if (!text || this.sending) return;
+
+            this.error = '';
+            this.sending = true;
+            this.inputMessage = '';
+
+            // Optimistic: add user message immediately
+            this.messages.push({ role: 'user', content: text });
+            this.$nextTick(() => this.scrollToBottom());
+
+            try {
+                const resp = await fetch(`/api/forge/${this.slug}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        session_id: this.session?.id || '',
+                    }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
+                    throw new Error(err.detail || `HTTP ${resp.status}`);
+                }
+
+                const data = await resp.json();
+
+                // Add bot response
+                this.messages.push({
+                    role: 'assistant',
+                    content: data.clean_response || data.response || '',
+                    traits_extracted: data.traits_extracted || 0,
+                });
+
+                // Update session info
+                if (data.session_id) {
+                    if (!this.session) this.session = {};
+                    this.session.id = data.session_id;
+                    this.session.trait_count = (this.session.trait_count || 0) + (data.traits_extracted || 0);
+                }
+
+                // Refresh traits if new ones were extracted
+                if (data.traits_extracted > 0) {
+                    await this.loadTraits();
+                    // Update session categories
+                    if (this.session) {
+                        this.session.categories_covered = [...this.coveredCategories];
+                    }
+                }
+
+            } catch (e) {
+                this.error = e.message;
+                // Remove the optimistic user message on failure
+                this.messages.pop();
+            } finally {
+                this.sending = false;
+                this.$nextTick(() => {
+                    this.scrollToBottom();
+                    this.$refs.chatInput?.focus();
+                });
+            }
+        },
+
+        async resetSession() {
+            if (!confirm('Reset the interview session? Chat history will be archived but traits are kept.')) return;
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/session/reset`, { method: 'POST' });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                this.messages = [];
+                this.session = null;
+                await this.loadSession();
+            } catch (e) {
+                this.error = 'Failed to reset session: ' + e.message;
+            }
+        },
+
+        async addTrait() {
+            if (!this.newTrait.content.trim()) return;
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/traits`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newTrait),
+                });
+                if (resp.ok) {
+                    this.newTrait = { category: 'tone', content: '', stable: false };
+                    this.showManualAdd = false;
+                    await this.loadTraits();
+                }
+            } catch (e) {
+                this.error = 'Failed to add trait: ' + e.message;
+            }
+        },
+
+        async deleteTrait(traitId) {
+            if (!confirm('Delete this trait?')) return;
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/traits/${traitId}`, { method: 'DELETE' });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                await this.loadTraits();
+            } catch (e) {
+                this.error = 'Failed to delete trait: ' + e.message;
+            }
+        },
+
+        async importTraits() {
+            const yaml = this.$refs.importYaml?.value;
+            if (!yaml?.trim()) return;
+            try {
+                const resp = await fetch(`/api/personality-forge/${this.slug}/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ yaml }),
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    this.showImport = false;
+                    await this.loadTraits();
+                } else {
+                    this.error = data.detail || 'Import failed';
+                }
+            } catch (e) {
+                this.error = 'Import failed: ' + e.message;
+            }
+        },
+
+        scrollToBottom() {
+            const el = this.$refs.chatScroll;
+            if (el) el.scrollTop = el.scrollHeight;
+        },
+    };
+}
+</script>

@@ -1,0 +1,13 @@
+name: personality-forge
+display_name: Personality Forge
+description: Conversational personality builder — interview-driven trait discovery with structured storage
+type: personality
+category: Core
+icon: fire
+color: orange
+version: 0.1.0
+database: true
+
+admin_panel: admin.html
+admin_label: Forge
+admin_api: admin_api.py
