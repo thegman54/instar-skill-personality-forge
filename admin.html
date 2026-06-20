@@ -231,11 +231,19 @@
 
             <!-- Category Progress -->
             <div x-show="traits.length > 0" class="mt-2 pt-2 border-t border-gray-800">
-                <div class="grid grid-cols-3 gap-1">
+                <p class="text-[10px] text-gray-500 mb-1.5">Coverage</p>
+                <div class="flex flex-col gap-1">
                     <template x-for="cat in allCategories" :key="cat">
-                        <div class="text-center px-1 py-0.5 rounded text-[9px]"
-                            :class="coveredCategories.has(cat) ? 'bg-orange-900/30 text-orange-400' : 'bg-gray-900/50 text-gray-600'"
-                            x-text="cat"></div>
+                        <div class="flex items-center gap-2 px-2 py-1 rounded"
+                            :class="coveredCategories.has(cat) ? 'bg-orange-900/20 border border-orange-800/30' : 'bg-gray-900/30 border border-gray-800/30'">
+                            <span class="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                                :class="coveredCategories.has(cat) ? 'bg-orange-400' : 'bg-gray-700'"></span>
+                            <span class="text-[11px] flex-1"
+                                :class="coveredCategories.has(cat) ? 'text-orange-300' : 'text-gray-600'"
+                                x-text="cat"></span>
+                            <span x-show="coveredCategories.has(cat)" class="text-[9px] text-orange-500"
+                                x-text="(groupedTraits[cat] || []).length"></span>
+                        </div>
                     </template>
                 </div>
             </div>
@@ -378,10 +386,13 @@ function personalityForge() {
 
                 const data = await resp.json();
 
-                // Add bot response
+                // Add bot response — strip [SPOKEN] tags from display
+                let botText = data.clean_response || data.response || '';
+                botText = botText.replace(/\[SPOKEN\][\s\S]*?\[\/SPOKEN\]\s*/g, '').trim();
+
                 this.messages.push({
                     role: 'assistant',
-                    content: data.clean_response || data.response || '',
+                    content: botText,
                     traits_extracted: data.traits_extracted || 0,
                 });
 
